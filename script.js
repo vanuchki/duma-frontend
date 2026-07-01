@@ -3,7 +3,7 @@
 // ============================================================
 
 // ---------- КОНФИГУРАЦИЯ ----------
-const BACKEND_URL = 'https://duma-backend-1.onrender.com';  // ← ВАШ АДРЕС
+const BACKEND_URL = 'https://duma-backend-1.onrender.com';
 
 // ---------- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ----------
 let socket = null;
@@ -12,6 +12,20 @@ let myPeerId = null;
 let currentToken = null;
 let currentUser = null;
 let isAdmin = false;
+
+// ---------- DOM ЭЛЕМЕНТЫ ----------
+const userInfo = document.getElementById('user-info');
+const adminPanel = document.getElementById('admin-panel');
+const deputyInfo = document.getElementById('deputy-info');
+const deputyNameDisplay = document.getElementById('deputy-name-display');
+const timerDisplay = document.getElementById('timer-display');
+const voteStatus = document.getElementById('vote-status');
+const resultsDisplay = document.getElementById('results-display');
+const breakStatus = document.getElementById('break-status');
+const deputiesList = document.getElementById('deputies-list');
+const speakerSelect = document.getElementById('speaker-select');
+const customTime = document.getElementById('custom-time');
+const deputyNameInput = document.getElementById('deputy-name');
 
 // ============================================================
 //  ОСНОВНЫЕ ФУНКЦИИ АВТОРИЗАЦИИ
@@ -22,7 +36,6 @@ function showLoginForm() {
     if (!password) return;
 
     if (password === 'duma2026') {
-        // Вход как председатель
         isAdmin = true;
         currentToken = 'admin';
         currentUser = { name: 'Председатель', isAdmin: true };
@@ -33,7 +46,6 @@ function showLoginForm() {
         fetchDeputies();
         return;
     } else {
-        // Пытаемся войти как депутат
         currentToken = password;
         attemptLogin(password);
     }
@@ -49,9 +61,7 @@ function attemptLogin(token) {
     })
     .then(res => {
         if (!res.ok) {
-            if (res.status === 401) {
-                throw new Error('Неверный токен');
-            }
+            if (res.status === 401) throw new Error('Неверный токен');
             throw new Error('Ошибка сервера');
         }
         return res.json();
@@ -101,6 +111,52 @@ function fetchDeputies() {
     .catch(console.error);
 }
 
+function renderDeputies(deputies) {
+    deputiesList.innerHTML = '';
+    deputies.forEach(dep => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <span>${dep.name}</span>
+            <span style="font-size:0.7rem;color:#aaa;">${dep.token}</span>
+            <div class="qr-code" id="qr-${dep.id}"></div>
+        `;
+        deputiesList.appendChild(li);
+        const phoneUrl = `${window.location.origin}/phone.html?token=${dep.token}`;
+        if (typeof QRCode !== 'undefined') {
+            new QRCode(document.getElementById(`qr-${dep.id}`), {
+                text: phoneUrl,
+                width: 60,
+                height: 60
+            });
+        }
+    });
+}
+
+function populateSpeakerSelect(deputies) {
+    speakerSelect.innerHTML = '';
+    deputies.forEach(dep => {
+        const opt = document.createElement('option');
+        opt.value = dep.id;
+        opt.textContent = dep.name;
+        speakerSelect.appendChild(opt);
+    });
+}
+
+// ---------- СОКЕТ И PEER ----------
+function initSocket(token) {
+    if (socket) socket.disconnect();
+    socket = io(BACKEND_URL);
+    socket.on('connect', () => {
+        console.log('✅ Сокет подключен');
+        if (peer && myPeerId) {
+            socket.emit('join', { token, peerId: myPeerId });
+        }
+    });
+    socket.on('error', (msg) => {
+        alert('Ошибка: ' + msg);
+    });
+}
+
 // ---------- ИНИЦИАЛИЗАЦИЯ ----------
 document.addEventListener('DOMContentLoaded', () => {
     const savedToken = localStorage.getItem('duma_token');
@@ -117,4 +173,42 @@ document.addEventListener('DOMContentLoaded', () => {
     } else {
         showLoginForm();
     }
+});
+
+// ---------- ОБРАБОТЧИКИ КНОПОК ----------
+document.addEventListener('DOMContentLoaded', () => {
+    const createDeputyBtn = document.getElementById('create-deputy-btn');
+    const giveFloorBtn = document.getElementById('give-floor-btn');
+    const revokeFloorBtn = document.getElementById('revoke-floor-btn');
+    const startVotingBtn = document.getElementById('start-voting-btn');
+    const closeVotingBtn = document.getElementById('close-voting-btn');
+    const announceResultsBtn = document.getElementById('announce-results-btn');
+    const breakBtn = document.getElementById('break-btn');
+    const endBreakBtn = document.getElementById('end-break-btn');
+    const clearAllBtn = document.getElementById('clear-all-btn');
+
+    if (createDeputyBtn) {
+        createDeputyBtn.addEventListener('click', () => {
+            const name = deputyNameInput.value.trim();
+            if (!name) return alert('Введите имя');
+            fetch(`${BACKEND_URL}/api/create-deputy`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name, adminPassword: 'duma2026' })
+            })
+            .then(res => res.json())
+            .then(data => {
+                if (data.success) {
+                    deputyNameInput.value = '';
+                    fetchDeputies();
+                } else {
+                    alert(data.message);
+                }
+            })
+            .catch(console.error);
+        });
+    }
+
+    // Остальные кнопки по аналогии...
+    console.log('🏛️ Симулятор Госдумы загружен');
 });
