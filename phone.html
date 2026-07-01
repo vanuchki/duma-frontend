@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Пульт депутата</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <link rel="stylesheet" href="phone.css">
+</head>
+<body>
+    <div id="phone-app">
+        <header>
+            <h1>🗳️ Пульт депутата</h1>
+            <div id="user-name"></div>
+        </header>
+        <main>
+            <div id="status-display">
+                <p id="timer">⏱️ 0</p>
+                <p id="break-status"></p>
+                <p id="vote-status"></p>
+            </div>
+            <div id="vote-buttons-container">
+                <!-- Кнопки голосования появятся здесь -->
+            </div>
+            <div id="results-display"></div>
+        </main>
+    </div>
+    <script src="phone.js"></script>
+</body>
+</html>
