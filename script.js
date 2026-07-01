@@ -5,7 +5,7 @@
 
 // ---------- КОНФИГУРАЦИЯ ----------
 // Адрес бэкенда (замените при деплое)
-const BACKEND_URL = 'https://duma-backend.onrender.com'; // или ваш Render URL
+const BACKEND_URL = 'https://duma-backend-1.onrender.com'; // или ваш Render URL
 const ADMIN_PASSWORD = 'duma2026'; // можно переопределить через env, но для простоты оставим
 
 // ---------- ГЛОБАЛЬНЫЕ ПЕРЕМЕННЫЕ ----------
