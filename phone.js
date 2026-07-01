@@ -3,7 +3,7 @@
 //  Только управление голосованием и отображение статуса
 // ============================================================
 
-const BACKEND_URL = 'https://duma-backend.onrender.com'; // замените на ваш бэкенд
+const BACKEND_URL = 'https://duma-backend-1.onrender.com'; // замените на ваш бэкенд
 
 // Получаем токен из URL
 const urlParams = new URLSearchParams(window.location.search);
