@@ -1,5 +1,6 @@
 // ============================================================
 //  Фронтенд для симулятора "Государственная Дума"
+//  ВЕРСИЯ 2.0 - ПРАВИЛЬНАЯ АВТОРИЗАЦИЯ
 // ============================================================
 
 // ---------- КОНФИГУРАЦИЯ ----------
@@ -12,6 +13,8 @@ let myPeerId = null;
 let currentToken = null;
 let currentUser = null;
 let isAdmin = false;
+let myStream = null;
+let isMuted = true;
 
 // ---------- DOM ЭЛЕМЕНТЫ ----------
 const userInfo = document.getElementById('user-info');
@@ -28,30 +31,110 @@ const customTime = document.getElementById('custom-time');
 const deputyNameInput = document.getElementById('deputy-name');
 
 // ============================================================
-//  ОСНОВНЫЕ ФУНКЦИИ АВТОРИЗАЦИИ
+//  УПРАВЛЕНИЕ ТОКЕНОМ (ПЕРСОНАЛЬНЫЙ ДЛЯ КАЖДОЙ ВКЛАДКИ)
 // ============================================================
 
-function showLoginForm() {
-    const password = prompt('Введите пароль председателя или токен депутата:');
-    if (!password) return;
+// Получить токен из localStorage (только для ЭТОЙ вкладки)
+function getToken() {
+    return localStorage.getItem('duma_token_' + window.location.host);
+}
 
-    if (password === 'duma2026') {
+// Сохранить токен (только для ЭТОЙ вкладки)
+function saveToken(token) {
+    localStorage.setItem('duma_token_' + window.location.host, token);
+}
+
+// Удалить токен (выход из аккаунта)
+function clearToken() {
+    localStorage.removeItem('duma_token_' + window.location.host);
+}
+
+// Проверить, есть ли токен
+function hasToken() {
+    return getToken() !== null;
+}
+
+// ============================================================
+//  ФУНКЦИИ АВТОРИЗАЦИИ
+// ============================================================
+
+function clearTokenAndReload() {
+    clearToken();
+    // Закрываем сокет
+    if (socket) {
+        socket.disconnect();
+        socket = null;
+    }
+    // Закрываем Peer
+    if (peer) {
+        peer.destroy();
+        peer = null;
+    }
+    // Останавливаем поток
+    if (myStream) {
+        myStream.getTracks().forEach(track => track.stop());
+        myStream = null;
+    }
+    location.reload();
+}
+
+function logout() {
+    if (confirm('Выйти из аккаунта?')) {
+        clearTokenAndReload();
+    }
+}
+
+// Добавляем кнопку выхода
+function addLogoutButton() {
+    let logoutBtn = document.getElementById('logout-btn');
+    if (!logoutBtn) {
+        const header = document.querySelector('header');
+        if (header) {
+            logoutBtn = document.createElement('button');
+            logoutBtn.id = 'logout-btn';
+            logoutBtn.textContent = '🚪 Выйти';
+            logoutBtn.style.cssText = 'background:#e94560;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;margin-left:10px;';
+            logoutBtn.addEventListener('click', logout);
+            header.appendChild(logoutBtn);
+        }
+    }
+}
+
+function showLoginForm() {
+    // Если уже есть токен — используем его
+    const savedToken = getToken();
+    if (savedToken) {
+        attemptLogin(savedToken);
+        return;
+    }
+    
+    const input = prompt('Введите пароль председателя или токен депутата:');
+    if (!input) return;
+
+    // Проверяем, может это пароль председателя
+    if (input === 'duma2026') {
+        // Председатель НЕ СОХРАНЯЕТСЯ как токен, он просто входит
         isAdmin = true;
         currentToken = 'admin';
         currentUser = { name: 'Председатель', isAdmin: true };
-        localStorage.setItem('duma_token', 'admin');
         userInfo.textContent = 'Председатель';
         adminPanel.style.display = 'block';
         deputyInfo.style.display = 'none';
         fetchDeputies();
+        initSocket('admin');
+        addLogoutButton();
         return;
-    } else {
-        currentToken = password;
-        attemptLogin(password);
     }
+    
+    // Иначе это токен депутата — пробуем войти
+    saveToken(input);
+    attemptLogin(input);
 }
 
 function attemptLogin(token) {
+    // Показываем загрузку
+    userInfo.textContent = 'Загрузка...';
+    
     fetch(`${BACKEND_URL}/api/session-state`, {
         method: 'GET',
         headers: { 
@@ -61,41 +144,83 @@ function attemptLogin(token) {
     })
     .then(res => {
         if (!res.ok) {
-            if (res.status === 401) throw new Error('Неверный токен');
+            if (res.status === 401) {
+                clearToken();
+                throw new Error('Неверный токен');
+            }
             throw new Error('Ошибка сервера');
         }
         return res.json();
     })
     .then(data => {
         if (!data.success) {
-            alert('Неверный токен. Попробуйте снова.');
-            localStorage.removeItem('duma_token');
+            clearToken();
+            alert('Неверный токен');
             showLoginForm();
             return;
         }
+        
         currentUser = data.user;
         isAdmin = data.user.isAdmin;
-        localStorage.setItem('duma_token', token);
         currentToken = token;
-        userInfo.textContent = `Депутат: ${data.user.name}`;
+        
+        // Обновляем интерфейс
+        userInfo.textContent = isAdmin ? 'Председатель' : `Депутат: ${data.user.name}`;
         deputyNameDisplay.textContent = data.user.name;
         
         if (isAdmin) {
             adminPanel.style.display = 'block';
             deputyInfo.style.display = 'none';
             fetchDeputies();
+            addLogoutButton();
         } else {
             adminPanel.style.display = 'none';
             deputyInfo.style.display = 'block';
+            // Запрашиваем камеру для депутата
+            startLocalStream();
+            addLogoutButton();
         }
         initSocket(token);
     })
     .catch(err => {
         console.error('Ошибка входа:', err);
-        alert('Ошибка подключения к серверу: ' + err.message);
-        localStorage.removeItem('duma_token');
+        alert('Ошибка: ' + err.message);
+        clearToken();
         showLoginForm();
     });
+}
+
+// ---------- ЗАПРОС КАМЕРЫ ДЛЯ ДЕПУТАТА ----------
+function startLocalStream() {
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then(stream => {
+            myStream = stream;
+            console.log('✅ Камера и микрофон включены');
+            // Отображаем своё видео
+            showLocalVideo(stream);
+        })
+        .catch(err => {
+            console.warn('⚠️ Нет доступа к камере/микрофону:', err);
+            // Не блокируем работу, просто предупреждаем
+        });
+}
+
+function showLocalVideo(stream) {
+    // Добавляем локальное видео в интерфейс
+    const container = document.getElementById('video-container') || document.body;
+    const videoWrapper = document.createElement('div');
+    videoWrapper.className = 'video-item';
+    videoWrapper.id = 'local-video';
+    const video = document.createElement('video');
+    video.srcObject = stream;
+    video.autoplay = true;
+    video.muted = true;
+    videoWrapper.appendChild(video);
+    const label = document.createElement('div');
+    label.className = 'label';
+    label.textContent = 'Вы (депутат)';
+    videoWrapper.appendChild(label);
+    container.appendChild(videoWrapper);
 }
 
 // ---------- ЗАГРУЗКА СПИСКА ДЕПУТАТОВ ----------
@@ -142,34 +267,28 @@ function populateSpeakerSelect(deputies) {
     });
 }
 
-// ---------- СОКЕТ И PEER ----------
+// ---------- СОКЕТ ----------
 function initSocket(token) {
-    if (socket) socket.disconnect();
+    if (socket) {
+        socket.disconnect();
+        socket = null;
+    }
     socket = io(BACKEND_URL);
     socket.on('connect', () => {
         console.log('✅ Сокет подключен');
-        if (peer && myPeerId) {
-            socket.emit('join', { token, peerId: myPeerId });
-        }
+        // Отправляем join с токеном
+        socket.emit('join', { token, peerId: myPeerId || null });
     });
     socket.on('error', (msg) => {
-        alert('Ошибка: ' + msg);
+        console.error('Ошибка сокета:', msg);
     });
 }
 
 // ---------- ИНИЦИАЛИЗАЦИЯ ----------
 document.addEventListener('DOMContentLoaded', () => {
-    const savedToken = localStorage.getItem('duma_token');
-    if (savedToken && savedToken !== 'admin') {
-        currentToken = savedToken;
+    const savedToken = getToken();
+    if (savedToken) {
         attemptLogin(savedToken);
-    } else if (savedToken === 'admin') {
-        isAdmin = true;
-        currentUser = { name: 'Председатель', isAdmin: true };
-        userInfo.textContent = 'Председатель';
-        adminPanel.style.display = 'block';
-        deputyInfo.style.display = 'none';
-        fetchDeputies();
     } else {
         showLoginForm();
     }
@@ -209,6 +328,11 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Остальные кнопки по аналогии...
     console.log('🏛️ Симулятор Госдумы загружен');
 });
+
+// ---------- ДЕБАГ: ПОКАЗАТЬ ТЕКУЩИЙ ТОКЕН ----------
+window.showCurrentToken = function() {
+    console.log('Текущий токен:', getToken());
+    console.log('Пользователь:', currentUser);
+};
