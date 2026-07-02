@@ -1,6 +1,6 @@
 // ============================================================
 //  Фронтенд для симулятора "Государственная Дума"
-//  ВЕРСИЯ 4.0 - МГНОВЕННОЕ ОБНОВЛЕНИЕ ДЛЯ ВСЕХ
+//  ВЕРСИЯ 5.0 - ПАРЛАМЕНТСКАЯ + ПОЛНАЯ РАБОТА
 // ============================================================
 
 // ---------- КОНФИГУРАЦИЯ ----------
@@ -25,10 +25,12 @@ let hasVoted = false;
 
 // ---------- DOM ЭЛЕМЕНТЫ ----------
 const userInfo = document.getElementById('user-info');
+const logoutBtn = document.getElementById('logout-btn');
 const adminPanel = document.getElementById('admin-panel');
 const deputyInfo = document.getElementById('deputy-info');
 const deputyNameDisplay = document.getElementById('deputy-name-display');
 const timerDisplay = document.getElementById('timer-display');
+const timerDisplayDeputy = document.getElementById('timer-display-deputy');
 const voteStatus = document.getElementById('vote-status');
 const resultsDisplay = document.getElementById('results-display');
 const breakStatus = document.getElementById('break-status');
@@ -78,18 +80,10 @@ function logout() {
     }
 }
 
-function addLogoutButton() {
-    let logoutBtn = document.getElementById('logout-btn');
-    if (!logoutBtn) {
-        const header = document.querySelector('header');
-        if (header) {
-            logoutBtn = document.createElement('button');
-            logoutBtn.id = 'logout-btn';
-            logoutBtn.textContent = '🚪 Выйти';
-            logoutBtn.style.cssText = 'background:#e94560;color:white;border:none;padding:6px 14px;border-radius:6px;cursor:pointer;margin-left:10px;';
-            logoutBtn.addEventListener('click', logout);
-            header.appendChild(logoutBtn);
-        }
+function showLogoutButton() {
+    if (logoutBtn) {
+        logoutBtn.style.display = 'inline-block';
+        logoutBtn.onclick = logout;
     }
 }
 
@@ -114,10 +108,10 @@ function showLoginForm() {
         userInfo.textContent = 'Председатель';
         adminPanel.style.display = 'block';
         deputyInfo.style.display = 'none';
+        showLogoutButton();
         fetchDeputies();
         initSocket('admin');
         initPeer('admin');
-        addLogoutButton();
         return;
     }
     
@@ -160,17 +154,17 @@ function attemptLogin(token) {
         
         userInfo.textContent = isAdmin ? 'Председатель' : `Депутат: ${data.user.name}`;
         deputyNameDisplay.textContent = data.user.name;
+        showLogoutButton();
         
         if (isAdmin) {
             adminPanel.style.display = 'block';
             deputyInfo.style.display = 'none';
             fetchDeputies();
-            addLogoutButton();
         } else {
             adminPanel.style.display = 'none';
             deputyInfo.style.display = 'block';
-            startLocalStream();
-            addLogoutButton();
+            // Запрашиваем камеру через 1 секунду
+            setTimeout(startLocalStream, 1000);
         }
         initSocket(token);
         initPeer(token);
@@ -196,6 +190,8 @@ function initPeer(token) {
     const peerId = token === 'admin' ? 'admin' : 'deputy_' + token.replace(/-/g, '');
     myPeerId = peerId;
     
+    if (peer) { peer.destroy(); peer = null; }
+    
     peer = new Peer(peerId, {
         debug: 2,
         config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] }
@@ -203,7 +199,7 @@ function initPeer(token) {
     
     peer.on('open', (id) => {
         console.log('✅ Peer открыт, id:', id);
-        if (socket) {
+        if (socket && socket.connected) {
             socket.emit('join', { token, peerId: id });
         }
     });
@@ -225,12 +221,15 @@ function initPeer(token) {
 }
 
 function startLocalStream() {
+    if (myStream) return;
+    
     navigator.mediaDevices.getUserMedia({ video: true, audio: true })
         .then(stream => {
             myStream = stream;
             stream.getAudioTracks().forEach(track => track.enabled = false);
             isMuted = true;
             addLocalVideo(stream);
+            
             // Соединяемся с уже активными пирами
             setTimeout(() => {
                 activePeers.forEach(peerId => {
@@ -238,11 +237,13 @@ function startLocalStream() {
                         connectToPeer(peerId);
                     }
                 });
-            }, 1000);
+            }, 1500);
+            
             console.log('✅ Камера и микрофон включены');
         })
         .catch(err => {
             console.warn('⚠️ Нет доступа к камере/микрофону:', err);
+            alert('⚠️ Для работы видео нужен доступ к камере и микрофону. Разрешите в настройках браузера.');
         });
 }
 
@@ -250,22 +251,31 @@ function connectToPeer(peerId) {
     if (peerId === myPeerId) return;
     if (peerConnections[peerId]) return;
     if (!myStream) return;
+    if (!peer) return;
     
-    const call = peer.call(peerId, myStream);
-    call.on('stream', (remoteStream) => {
-        addRemoteVideo(peerId, remoteStream);
-    });
-    call.on('close', () => {
-        delete peerConnections[peerId];
-        const videoEl = document.querySelector(`.video-item[data-peer="${peerId}"]`);
-        if (videoEl) videoEl.remove();
-    });
-    peerConnections[peerId] = call;
+    try {
+        const call = peer.call(peerId, myStream);
+        call.on('stream', (remoteStream) => {
+            addRemoteVideo(peerId, remoteStream);
+        });
+        call.on('close', () => {
+            delete peerConnections[peerId];
+            const videoEl = document.querySelector(`.video-item[data-peer="${peerId}"]`);
+            if (videoEl) videoEl.remove();
+        });
+        peerConnections[peerId] = call;
+    } catch(e) {
+        console.warn('Не удалось соединиться с peer:', peerId);
+    }
 }
 
 function addLocalVideo(stream) {
+    // Удаляем старое локальное видео если есть
+    const oldLocal = document.querySelector('.video-item.local');
+    if (oldLocal) oldLocal.remove();
+    
     const wrapper = document.createElement('div');
-    wrapper.className = 'video-item';
+    wrapper.className = 'video-item local';
     wrapper.dataset.peer = myPeerId;
     wrapper.dataset.name = currentUser ? currentUser.name : 'Я';
     const video = document.createElement('video');
@@ -308,15 +318,20 @@ function addRemoteVideo(peerId, stream) {
 function restoreState(state) {
     // Таймер
     currentTime = state.time_remaining || 0;
-    timerDisplay.textContent = `⏱️ ${currentTime}`;
+    updateTimerDisplay(currentTime);
     
     // Перерыв
     if (state.is_break) {
         breakStatus.textContent = '⏸️ ПЕРЕРЫВ';
-        document.body.style.background = '#1a237e';
+        document.body.style.background = '#0a0a2a';
+        if (centerWrapper) centerWrapper.style.display = 'none';
+        if (myStream) {
+            myStream.getAudioTracks().forEach(track => track.enabled = false);
+            isMuted = true;
+        }
     } else {
         breakStatus.textContent = '';
-        document.body.style.background = '#1a1a2e';
+        document.body.style.background = '';
     }
     
     // Голосование
@@ -324,6 +339,8 @@ function restoreState(state) {
         voteStatus.textContent = '🗳️ Идёт голосование';
         if (!isAdmin && !hasVoted) {
             showVoteButtons();
+        } else if (hasVoted) {
+            voteStatus.textContent = '🗳️ Вы уже проголосовали';
         }
     } else {
         voteStatus.textContent = '';
@@ -333,37 +350,49 @@ function restoreState(state) {
     // Спикер
     if (state.current_speaker_id) {
         currentSpeakerId = state.current_speaker_id;
-        // Показываем центральное видео
-        const speakerPeerId = getPeerIdByUserId(state.current_speaker_id);
-        if (speakerPeerId) {
-            showCenterVideo(speakerPeerId, state.speakerName || 'Выступающий');
+        if (state.speakerName) {
+            centerLabel.textContent = state.speakerName;
         }
+        // Показываем центральное видео
+        showCenterVideoForSpeaker(state.current_speaker_id);
     } else {
         currentSpeakerId = null;
         centerWrapper.style.display = 'none';
     }
 }
 
-function getPeerIdByUserId(userId) {
-    // Ищем в activePeers (получаем от сервера)
-    // Пока заглушка
-    return null;
+function updateTimerDisplay(time) {
+    currentTime = time;
+    if (timerDisplay) timerDisplay.textContent = `⏱️ ${time}`;
+    if (timerDisplayDeputy) timerDisplayDeputy.textContent = `⏱️ ${time}`;
 }
 
-function showCenterVideo(peerId, name) {
-    // Находим видео этого пира
-    const videoItem = document.querySelector(`.video-item[data-peer="${peerId}"]`);
-    if (videoItem) {
-        const video = videoItem.querySelector('video');
-        if (video && video.srcObject) {
-            centerVideo.srcObject = video.srcObject;
-            centerWrapper.style.display = 'block';
-            centerLabel.textContent = name;
+function showCenterVideoForSpeaker(speakerId) {
+    // Пытаемся найти видео этого спикера по peerId
+    let found = false;
+    const videoItems = document.querySelectorAll('.video-item');
+    videoItems.forEach(item => {
+        const peerId = item.dataset.peer;
+        if (peerId && peerId.includes(speakerId.toString())) {
+            const video = item.querySelector('video');
+            if (video && video.srcObject) {
+                centerVideo.srcObject = video.srcObject;
+                centerWrapper.style.display = 'block';
+                found = true;
+            }
         }
-    } else if (peerId === myPeerId && myStream) {
+    });
+    
+    // Если не нашли, но это мы сами
+    if (!found && speakerId === currentUser?.id && myStream) {
         centerVideo.srcObject = myStream;
         centerWrapper.style.display = 'block';
-        centerLabel.textContent = name;
+        centerLabel.textContent = 'Вы (выступаете)';
+    }
+    
+    // Если не нашли нигде — скрываем
+    if (!found) {
+        centerWrapper.style.display = 'none';
     }
 }
 
@@ -384,12 +413,13 @@ function fetchDeputies() {
 }
 
 function renderDeputies(deputies) {
+    if (!deputiesList) return;
     deputiesList.innerHTML = '';
     deputies.forEach(dep => {
         const li = document.createElement('li');
         li.innerHTML = `
             <span>${dep.name}</span>
-            <span style="font-size:0.7rem;color:#aaa;">${dep.token}</span>
+            <span style="font-size:0.7rem;color:#8899bb;">${dep.token.substring(0, 12)}...</span>
             <div class="qr-code" id="qr-${dep.id}"></div>
         `;
         deputiesList.appendChild(li);
@@ -398,8 +428,8 @@ function renderDeputies(deputies) {
             try {
                 new QRCode(document.getElementById(`qr-${dep.id}`), {
                     text: phoneUrl,
-                    width: 60,
-                    height: 60
+                    width: 50,
+                    height: 50
                 });
             } catch(e) {}
         }
@@ -407,6 +437,7 @@ function renderDeputies(deputies) {
 }
 
 function populateSpeakerSelect(deputies) {
+    if (!speakerSelect) return;
     speakerSelect.innerHTML = '';
     deputies.forEach(dep => {
         const opt = document.createElement('option');
@@ -421,15 +452,14 @@ function populateSpeakerSelect(deputies) {
 // ============================================================
 
 function showVoteButtons() {
-    const container = document.getElementById('vote-buttons');
+    let container = document.getElementById('vote-buttons');
     if (!container) {
-        const div = document.createElement('div');
-        div.id = 'vote-buttons';
-        div.style.cssText = 'margin-top:10px;display:flex;gap:10px;flex-wrap:wrap;justify-content:center;';
-        deputyInfo.appendChild(div);
+        container = document.createElement('div');
+        container.id = 'vote-buttons';
+        container.className = 'vote-buttons';
+        if (deputyInfo) deputyInfo.appendChild(container);
     }
-    const container2 = document.getElementById('vote-buttons');
-    container2.innerHTML = '';
+    container.innerHTML = '';
     const choices = [
         { label: 'ЗА', value: 'for', color: '#2e7d32' },
         { label: 'ПРОТИВ', value: 'against', color: '#c62828' },
@@ -439,14 +469,19 @@ function showVoteButtons() {
         const btn = document.createElement('button');
         btn.textContent = choice.label;
         btn.style.cssText = `
-            flex:1;min-width:80px;padding:12px 0;border:none;border-radius:8px;
-            font-weight:bold;font-size:1.1rem;cursor:pointer;
-            background:${choice.color};color:${choice.value === 'abstain' ? '#000' : '#fff'};
+            background: ${choice.color};
+            color: ${choice.value === 'abstain' ? '#000' : '#fff'};
+            padding: 12px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            flex: 1;
+            min-width: 80px;
         `;
-        btn.addEventListener('click', () => {
-            sendVote(choice.value);
-        });
-        container2.appendChild(btn);
+        btn.onclick = () => sendVote(choice.value);
+        container.appendChild(btn);
     });
 }
 
@@ -457,7 +492,7 @@ function hideVoteButtons() {
 
 function sendVote(vote) {
     const container = document.getElementById('vote-buttons');
-    if (container) container.innerHTML = '<p style="color:#ffd700;">⏳ Отправка...</p>';
+    if (container) container.innerHTML = '<p style="color:#ffd93d;">⏳ Отправка...</p>';
     
     fetch(`${BACKEND_URL}/api/vote`, {
         method: 'POST',
@@ -469,7 +504,7 @@ function sendVote(vote) {
         if (data.success) {
             hasVoted = true;
             hideVoteButtons();
-            voteStatus.textContent = '🗳️ Вы проголосовали!';
+            voteStatus.textContent = '✅ Вы проголосовали!';
         } else {
             alert('❌ ' + data.message);
             showVoteButtons();
@@ -493,28 +528,52 @@ function initSocket(token) {
     
     socket.on('connect', () => {
         console.log('✅ Сокет подключен');
-        socket.emit('join', { token, peerId: myPeerId || null });
+        if (myPeerId) {
+            socket.emit('join', { token, peerId: myPeerId });
+        } else {
+            socket.emit('join', { token, peerId: null });
+        }
     });
     
     // ---------- МГНОВЕННЫЕ СОБЫТИЯ ----------
     
-    // 1. Таймер
     socket.on('timer-update', (data) => {
-        currentTime = data.time;
-        timerDisplay.textContent = `⏱️ ${data.time}`;
+        updateTimerDisplay(data.time);
     });
     
-    // 2. Смена выступающего
     socket.on('floor-changed', (data) => {
         currentSpeakerId = data.speakerId;
         if (data.speakerId) {
-            timerDisplay.textContent = `⏱️ ${data.time || 0}`;
-            // Показываем видео выступающего
-            const speakerPeerId = data.peerId || getPeerIdByUserId(data.speakerId);
-            if (speakerPeerId) {
-                showCenterVideo(speakerPeerId, data.speakerName || 'Выступающий');
+            updateTimerDisplay(data.time || 0);
+            centerLabel.textContent = data.speakerName || 'Выступающий';
+            // Показываем видео
+            if (data.peerId) {
+                // Пытаемся найти видео по peerId
+                const videoItems = document.querySelectorAll('.video-item');
+                let found = false;
+                videoItems.forEach(item => {
+                    if (item.dataset.peer === data.peerId) {
+                        const video = item.querySelector('video');
+                        if (video && video.srcObject) {
+                            centerVideo.srcObject = video.srcObject;
+                            centerWrapper.style.display = 'block';
+                            found = true;
+                        }
+                    }
+                });
+                if (!found) {
+                    // Если не нашли, но это мы
+                    if (data.peerId === myPeerId && myStream) {
+                        centerVideo.srcObject = myStream;
+                        centerWrapper.style.display = 'block';
+                        centerLabel.textContent = 'Вы (выступаете)';
+                        // Включаем микрофон
+                        myStream.getAudioTracks().forEach(track => track.enabled = true);
+                        isMuted = false;
+                    }
+                }
             }
-            // Если говорим мы - включаем микрофон
+            // Если говорим мы — включаем микрофон
             if (data.speakerId === currentUser?.id && myStream) {
                 myStream.getAudioTracks().forEach(track => track.enabled = true);
                 isMuted = false;
@@ -528,7 +587,6 @@ function initSocket(token) {
         }
     });
     
-    // 3. Голосование началось
     socket.on('voting-started', () => {
         voteStatus.textContent = '🗳️ Идёт голосование!';
         if (!isAdmin && !hasVoted) {
@@ -538,27 +596,31 @@ function initSocket(token) {
         }
     });
     
-    // 4. Голосование закрыто
     socket.on('voting-closed', () => {
         voteStatus.textContent = '🔒 Голосование закрыто';
         hideVoteButtons();
     });
     
-    // 5. Результаты
+    socket.on('vote-count', (data) => {
+        if (voteStatus) {
+            voteStatus.textContent = `🗳️ Проголосовало: ${data.total}`;
+        }
+    });
+    
     socket.on('results', (data) => {
-        resultsDisplay.innerHTML = `
-            <strong>ЗА</strong> — ${data.for} &nbsp;|&nbsp;
-            <strong>ПРОТИВ</strong> — ${data.against} &nbsp;|&nbsp;
-            <strong>ВОЗДЕРЖАЛСЯ</strong> — ${data.abstain}
-        `;
-        // Показываем результаты всем
+        if (resultsDisplay) {
+            resultsDisplay.innerHTML = `
+                <strong>ЗА</strong> — ${data.for || 0} &nbsp;|&nbsp;
+                <strong>ПРОТИВ</strong> — ${data.against || 0} &nbsp;|&nbsp;
+                <strong>ВОЗДЕРЖАЛСЯ</strong> — ${data.abstain || 0}
+            `;
+        }
         voteStatus.textContent = '📊 Результаты оглашены!';
     });
     
-    // 6. Перерыв
     socket.on('break-started', () => {
         breakStatus.textContent = '⏸️ ПЕРЕРЫВ';
-        document.body.style.background = '#1a237e';
+        document.body.style.background = '#0a0a2a';
         centerWrapper.style.display = 'none';
         if (myStream) {
             myStream.getAudioTracks().forEach(track => track.enabled = false);
@@ -566,47 +628,46 @@ function initSocket(token) {
         }
     });
     
-    // 7. Перерыв закончен
     socket.on('break-ended', () => {
         breakStatus.textContent = '';
-        document.body.style.background = '#1a1a2e';
+        document.body.style.background = '';
     });
     
-    // 8. Список обновился
     socket.on('deputies-updated', (deputies) => {
-        if (isAdmin) {
+        if (isAdmin && deputiesList) {
             renderDeputies(deputies);
             populateSpeakerSelect(deputies);
         }
     });
     
-    // 9. Полная очистка
     socket.on('clear-all', () => {
-        deputiesList.innerHTML = '';
-        speakerSelect.innerHTML = '';
-        resultsDisplay.innerHTML = '';
-        timerDisplay.textContent = '⏱️ 0';
-        voteStatus.textContent = '';
-        breakStatus.textContent = '';
+        if (deputiesList) deputiesList.innerHTML = '';
+        if (speakerSelect) speakerSelect.innerHTML = '';
+        if (resultsDisplay) resultsDisplay.innerHTML = '';
+        updateTimerDisplay(0);
+        if (voteStatus) voteStatus.textContent = '';
+        if (breakStatus) breakStatus.textContent = '';
         centerWrapper.style.display = 'none';
         hideVoteButtons();
         hasVoted = false;
         if (isAdmin) fetchDeputies();
     });
     
-    // 10. Активные пиры (для видео)
     socket.on('active-peers', (peers) => {
-        activePeers = peers;
-        peers.forEach(peerId => {
-            if (peerId !== myPeerId && !peerConnections[peerId] && myStream) {
-                connectToPeer(peerId);
-            }
-        });
+        activePeers = peers || [];
+        // Соединяемся с новыми пирами
+        if (myStream) {
+            peers.forEach(peerId => {
+                if (peerId !== myPeerId && !peerConnections[peerId]) {
+                    connectToPeer(peerId);
+                }
+            });
+        }
         // Удаляем старые соединения
         for (let id in peerConnections) {
             if (!peers.includes(id) && id !== myPeerId) {
                 if (peerConnections[id]) {
-                    peerConnections[id].close();
+                    try { peerConnections[id].close(); } catch(e) {}
                 }
                 delete peerConnections[id];
                 const videoEl = document.querySelector(`.video-item[data-peer="${id}"]`);
@@ -617,6 +678,7 @@ function initSocket(token) {
     
     socket.on('error', (msg) => {
         console.error('Ошибка сокета:', msg);
+        alert('Ошибка: ' + msg);
     });
 }
 
@@ -627,6 +689,10 @@ function initSocket(token) {
 function adminAction(action, payload = {}) {
     if (!isAdmin) {
         alert('Только председатель может выполнять это действие');
+        return;
+    }
+    if (!socket || !socket.connected) {
+        alert('Нет соединения с сервером');
         return;
     }
     socket.emit('admin-action', {
@@ -641,6 +707,7 @@ function adminAction(action, payload = {}) {
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {
+    // Проверяем сохранённый токен
     const savedToken = getToken();
     if (savedToken) {
         attemptLogin(savedToken);
@@ -653,9 +720,9 @@ document.addEventListener('DOMContentLoaded', () => {
     // Создать депутата
     const createBtn = document.getElementById('create-deputy-btn');
     if (createBtn) {
-        createBtn.addEventListener('click', () => {
-            const name = deputyNameInput.value.trim();
-            if (!name) return alert('Введите имя');
+        createBtn.onclick = () => {
+            const name = deputyNameInput ? deputyNameInput.value.trim() : '';
+            if (!name) return alert('Введите имя депутата');
             fetch(`${BACKEND_URL}/api/create-deputy`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -664,90 +731,95 @@ document.addEventListener('DOMContentLoaded', () => {
             .then(res => res.json())
             .then(data => {
                 if (data.success) {
-                    deputyNameInput.value = '';
+                    if (deputyNameInput) deputyNameInput.value = '';
                     fetchDeputies();
                 } else {
-                    alert(data.message);
+                    alert(data.message || 'Ошибка создания');
                 }
             })
-            .catch(console.error);
-        });
+            .catch(err => {
+                console.error(err);
+                alert('Ошибка: ' + err.message);
+            });
+        };
     }
     
     // Дать слово
     const giveBtn = document.getElementById('give-floor-btn');
     if (giveBtn) {
-        giveBtn.addEventListener('click', () => {
-            const userId = speakerSelect.value;
+        giveBtn.onclick = () => {
+            const userId = speakerSelect ? speakerSelect.value : '';
             if (!userId) return alert('Выберите депутата');
-            let seconds = parseInt(customTime.value) || 60;
+            let seconds = parseInt(customTime ? customTime.value : 60);
+            if (isNaN(seconds) || seconds <= 0) seconds = 60;
             adminAction('give-floor', { userId, seconds });
-        });
+        };
     }
     
     // Лишить слова
     const revokeBtn = document.getElementById('revoke-floor-btn');
     if (revokeBtn) {
-        revokeBtn.addEventListener('click', () => {
+        revokeBtn.onclick = () => {
             adminAction('revoke-floor');
-        });
+        };
     }
     
     // Пресеты времени
-    document.querySelectorAll('.preset-buttons button').forEach(btn => {
-        btn.addEventListener('click', () => {
-            customTime.value = btn.dataset.seconds;
-        });
+    document.querySelectorAll('.preset-btn').forEach(btn => {
+        btn.onclick = () => {
+            if (customTime) customTime.value = btn.dataset.seconds;
+        };
     });
     
     // Голосование
     const startVoteBtn = document.getElementById('start-voting-btn');
     if (startVoteBtn) {
-        startVoteBtn.addEventListener('click', () => {
+        startVoteBtn.onclick = () => {
             adminAction('start-voting');
-        });
+        };
     }
     
     const closeVoteBtn = document.getElementById('close-voting-btn');
     if (closeVoteBtn) {
-        closeVoteBtn.addEventListener('click', () => {
+        closeVoteBtn.onclick = () => {
             adminAction('close-voting');
-        });
+        };
     }
     
     const announceBtn = document.getElementById('announce-results-btn');
     if (announceBtn) {
-        announceBtn.addEventListener('click', () => {
+        announceBtn.onclick = () => {
             adminAction('announce-results');
-        });
+        };
     }
     
     // Перерыв
     const breakBtn = document.getElementById('break-btn');
     if (breakBtn) {
-        breakBtn.addEventListener('click', () => {
+        breakBtn.onclick = () => {
             adminAction('set-break');
-        });
+        };
     }
     
     const endBreakBtn = document.getElementById('end-break-btn');
     if (endBreakBtn) {
-        endBreakBtn.addEventListener('click', () => {
+        endBreakBtn.onclick = () => {
             adminAction('end-break');
-        });
+        };
     }
     
     // Очистка
     const clearBtn = document.getElementById('clear-all-btn');
     if (clearBtn) {
-        clearBtn.addEventListener('click', () => {
+        clearBtn.onclick = () => {
             if (confirm('Вы уверены, что хотите очистить всё?')) {
                 adminAction('clear-all');
             }
-        });
+        };
     }
     
     console.log('🏛️ Симулятор Госдумы загружен');
+    console.log('📌 Для дебага: window.showState()');
 });
 
 // ============================================================
@@ -755,9 +827,22 @@ document.addEventListener('DOMContentLoaded', () => {
 // ============================================================
 
 window.showState = function() {
-    console.log('Текущий пользователь:', currentUser);
+    console.log('=== СОСТОЯНИЕ СИСТЕМЫ ===');
+    console.log('Пользователь:', currentUser);
     console.log('Админ:', isAdmin);
     console.log('Токен:', getToken());
-    console.log('Спикер:', currentSpeakerId);
+    console.log('Спикер ID:', currentSpeakerId);
     console.log('Время:', currentTime);
+    console.log('Сокет:', socket ? 'подключен' : 'отключен');
+    console.log('Peer:', peer ? 'активен' : 'неактивен');
+    console.log('Поток:', myStream ? 'есть' : 'нет');
+    console.log('Активные пиры:', activePeers);
+};
+
+window.forceReconnect = function() {
+    if (socket) {
+        socket.disconnect();
+        socket.connect();
+        console.log('🔄 Переподключение...');
+    }
 };
