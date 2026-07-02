@@ -1,6 +1,6 @@
 // ============================================================
 //  Фронтенд для симулятора "Государственная Дума"
-//  ВЕРСИЯ 6.0 - ИСПРАВЛЕННАЯ АВТОРИЗАЦИЯ
+//  ВЕРСИЯ 7.0 - ИСПРАВЛЕННЫЙ PEERJS
 // ============================================================
 
 // ---------- КОНФИГУРАЦИЯ ----------
@@ -88,7 +88,7 @@ function showLogoutButton() {
 }
 
 // ============================================================
-//  АВТОРИЗАЦИЯ (ИСПРАВЛЕННАЯ!)
+//  АВТОРИЗАЦИЯ
 // ============================================================
 
 function showLoginForm() {
@@ -111,6 +111,7 @@ function showLoginForm() {
         showLogoutButton();
         fetchDeputies();
         initSocket('admin');
+        // PeerJS запускается отдельно с уникальным ID
         initPeer('admin');
         return;
     }
@@ -119,7 +120,6 @@ function showLoginForm() {
     attemptLogin(input);
 }
 
-// ГЛАВНОЕ ИСПРАВЛЕНИЕ ЗДЕСЬ — ПРАВИЛЬНАЯ ПЕРЕДАЧА ТОКЕНА
 function attemptLogin(token) {
     userInfo.textContent = 'Загрузка...';
     
@@ -127,7 +127,7 @@ function attemptLogin(token) {
         method: 'GET',
         headers: { 
             'Content-Type': 'application/json',
-            'Authorization': token  // ТОКЕН ПЕРЕДАЁТСЯ В ЗАГОЛОВКЕ
+            'Authorization': token
         }
     })
     .then(res => {
@@ -182,18 +182,27 @@ function attemptLogin(token) {
 }
 
 // ============================================================
-//  PEERJS (ВИДЕО)
+//  PEERJS (ИСПРАВЛЕННАЯ ВЕРСИЯ)
 // ============================================================
 
 function initPeer(token) {
-    const peerId = token === 'admin' ? 'admin' : 'deputy_' + token.replace(/-/g, '');
-    myPeerId = peerId;
+    // Генерируем УНИКАЛЬНЫЙ ID для каждого подключения
+    const uniqueId = token === 'admin' 
+        ? 'admin_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)
+        : 'deputy_' + token.replace(/-/g, '') + '_' + Date.now().toString(36);
+    
+    myPeerId = uniqueId;
     
     if (peer) { peer.destroy(); peer = null; }
     
-    peer = new Peer(peerId, {
+    peer = new Peer(uniqueId, {
         debug: 2,
-        config: { 'iceServers': [{ 'urls': 'stun:stun.l.google.com:19302' }] }
+        config: { 
+            'iceServers': [
+                { 'urls': 'stun:stun.l.google.com:19302' },
+                { 'urls': 'stun:stun1.l.google.com:19302' }
+            ] 
+        }
     });
     
     peer.on('open', (id) => {
@@ -215,7 +224,24 @@ function initPeer(token) {
     });
     
     peer.on('error', (err) => {
-        console.error('Peer error:', err);
+        console.warn('PeerJS error:', err.type || err);
+        // Переподключаемся при ошибке
+        if (err.type === 'lost-connection' || err.type === 'disconnected') {
+            setTimeout(() => {
+                if (peer) {
+                    peer.reconnect();
+                }
+            }, 3000);
+        }
+    });
+    
+    peer.on('disconnected', () => {
+        console.warn('⚠️ Peer отключился, переподключаемся...');
+        setTimeout(() => {
+            if (peer) {
+                peer.reconnect();
+            }
+        }, 3000);
     });
 }
 
@@ -241,7 +267,6 @@ function startLocalStream() {
         })
         .catch(err => {
             console.warn('⚠️ Нет доступа к камере/микрофону:', err);
-            alert('⚠️ Для работы видео нужен доступ к камере и микрофону. Разрешите в настройках браузера.');
         });
 }
 
@@ -692,8 +717,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoginForm();
     }
     
-    // ---------- НАСТРОЙКА КНОПОК ----------
-    
     const createBtn = document.getElementById('create-deputy-btn');
     if (createBtn) {
         createBtn.onclick = () => {
@@ -791,10 +814,6 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('🏛️ Симулятор Госдумы загружен');
     console.log('📌 Для дебага: window.showState()');
 });
-
-// ============================================================
-//  ДЕБАГ
-// ============================================================
 
 window.showState = function() {
     console.log('=== СОСТОЯНИЕ СИСТЕМЫ ===');
