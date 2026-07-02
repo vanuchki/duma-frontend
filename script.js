@@ -1,9 +1,7 @@
 // ============================================================
-//  Фронтенд для симулятора "Государственная Дума"
-//  ВЕРСИЯ 7.0 - ИСПРАВЛЕННЫЙ PEERJS
+//  Фронтенд — ФИНАЛЬНАЯ РАБОЧАЯ ВЕРСИЯ
 // ============================================================
 
-// ---------- КОНФИГУРАЦИЯ ----------
 const BACKEND_URL = 'https://duma-backend-1.onrender.com';
 const ADMIN_PASSWORD = 'duma2026';
 
@@ -18,7 +16,6 @@ let myStream = null;
 let isMuted = true;
 let currentSpeakerId = null;
 let currentTime = 0;
-let timerInterval = null;
 let peerConnections = {};
 let activePeers = [];
 let hasVoted = false;
@@ -44,7 +41,7 @@ const centerWrapper = document.getElementById('center-video-wrapper');
 const centerLabel = document.getElementById('center-label');
 
 // ============================================================
-//  УПРАВЛЕНИЕ ТОКЕНОМ
+//  ТОКЕН
 // ============================================================
 
 function getToken() {
@@ -58,10 +55,6 @@ function saveToken(token) {
 function clearToken() {
     localStorage.removeItem('duma_token_' + window.location.host);
 }
-
-// ============================================================
-//  ВЫХОД
-// ============================================================
 
 function clearTokenAndReload() {
     clearToken();
@@ -111,7 +104,6 @@ function showLoginForm() {
         showLogoutButton();
         fetchDeputies();
         initSocket('admin');
-        // PeerJS запускается отдельно с уникальным ID
         initPeer('admin');
         return;
     }
@@ -182,11 +174,10 @@ function attemptLogin(token) {
 }
 
 // ============================================================
-//  PEERJS (ИСПРАВЛЕННАЯ ВЕРСИЯ)
+//  PEERJS — ИСПРАВЛЕННАЯ ВЕРСИЯ (secure: true)
 // ============================================================
 
 function initPeer(token) {
-    // Генерируем УНИКАЛЬНЫЙ ID для каждого подключения
     const uniqueId = token === 'admin' 
         ? 'admin_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)
         : 'deputy_' + token.replace(/-/g, '') + '_' + Date.now().toString(36);
@@ -195,8 +186,10 @@ function initPeer(token) {
     
     if (peer) { peer.destroy(); peer = null; }
     
+    // ГЛАВНОЕ ИСПРАВЛЕНИЕ: добавил secure: true
     peer = new Peer(uniqueId, {
         debug: 2,
+        secure: true,  // ← ЭТО ВКЛЮЧАЕТ wss:// ВМЕСТО ws://
         config: { 
             'iceServers': [
                 { 'urls': 'stun:stun.l.google.com:19302' },
@@ -218,32 +211,25 @@ function initPeer(token) {
             call.on('stream', (remoteStream) => {
                 addRemoteVideo(call.peer, remoteStream);
             });
-        } else {
-            console.warn('Нет локального потока для ответа');
         }
     });
     
     peer.on('error', (err) => {
         console.warn('PeerJS error:', err.type || err);
-        // Переподключаемся при ошибке
         if (err.type === 'lost-connection' || err.type === 'disconnected') {
-            setTimeout(() => {
-                if (peer) {
-                    peer.reconnect();
-                }
-            }, 3000);
+            setTimeout(() => { if (peer) peer.reconnect(); }, 3000);
         }
     });
     
     peer.on('disconnected', () => {
         console.warn('⚠️ Peer отключился, переподключаемся...');
-        setTimeout(() => {
-            if (peer) {
-                peer.reconnect();
-            }
-        }, 3000);
+        setTimeout(() => { if (peer) peer.reconnect(); }, 3000);
     });
 }
+
+// ============================================================
+//  ВИДЕО
+// ============================================================
 
 function startLocalStream() {
     if (myStream) return;
@@ -254,7 +240,6 @@ function startLocalStream() {
             stream.getAudioTracks().forEach(track => track.enabled = false);
             isMuted = true;
             addLocalVideo(stream);
-            
             setTimeout(() => {
                 activePeers.forEach(peerId => {
                     if (peerId !== myPeerId && !peerConnections[peerId]) {
@@ -262,7 +247,6 @@ function startLocalStream() {
                     }
                 });
             }, 1500);
-            
             console.log('✅ Камера и микрофон включены');
         })
         .catch(err => {
@@ -273,8 +257,7 @@ function startLocalStream() {
 function connectToPeer(peerId) {
     if (peerId === myPeerId) return;
     if (peerConnections[peerId]) return;
-    if (!myStream) return;
-    if (!peer) return;
+    if (!myStream || !peer) return;
     
     try {
         const call = peer.call(peerId, myStream);
@@ -299,7 +282,6 @@ function addLocalVideo(stream) {
     const wrapper = document.createElement('div');
     wrapper.className = 'video-item local';
     wrapper.dataset.peer = myPeerId;
-    wrapper.dataset.name = currentUser ? currentUser.name : 'Я';
     const video = document.createElement('video');
     video.srcObject = stream;
     video.autoplay = true;
@@ -334,7 +316,7 @@ function addRemoteVideo(peerId, stream) {
 }
 
 // ============================================================
-//  ВОССТАНОВЛЕНИЕ СОСТОЯНИЯ
+//  ВОССТАНОВЛЕНИЕ
 // ============================================================
 
 function restoreState(state) {
@@ -386,8 +368,7 @@ function updateTimerDisplay(time) {
 
 function showCenterVideoForSpeaker(speakerId) {
     let found = false;
-    const videoItems = document.querySelectorAll('.video-item');
-    videoItems.forEach(item => {
+    document.querySelectorAll('.video-item').forEach(item => {
         const peerId = item.dataset.peer;
         if (peerId && peerId.includes(speakerId.toString())) {
             const video = item.querySelector('video');
@@ -398,20 +379,16 @@ function showCenterVideoForSpeaker(speakerId) {
             }
         }
     });
-    
     if (!found && speakerId === currentUser?.id && myStream) {
         centerVideo.srcObject = myStream;
         centerWrapper.style.display = 'block';
         centerLabel.textContent = 'Вы (выступаете)';
     }
-    
-    if (!found) {
-        centerWrapper.style.display = 'none';
-    }
+    if (!found) centerWrapper.style.display = 'none';
 }
 
 // ============================================================
-//  ЗАГРУЗКА СПИСКА ДЕПУТАТОВ
+//  ДЕПУТАТЫ
 // ============================================================
 
 function fetchDeputies() {
@@ -462,7 +439,7 @@ function populateSpeakerSelect(deputies) {
 }
 
 // ============================================================
-//  ГОЛОСОВАНИЕ (ДЛЯ ДЕПУТАТОВ)
+//  ГОЛОСОВАНИЕ
 // ============================================================
 
 function showVoteButtons() {
@@ -532,7 +509,7 @@ function sendVote(vote) {
 }
 
 // ============================================================
-//  СОКЕТ
+//  СОКЕТ (ИСПРАВЛЕННЫЙ)
 // ============================================================
 
 function initSocket(token) {
@@ -542,11 +519,12 @@ function initSocket(token) {
     
     socket.on('connect', () => {
         console.log('✅ Сокет подключен');
-        if (myPeerId) {
-            socket.emit('join', { token, peerId: myPeerId });
-        } else {
-            socket.emit('join', { token, peerId: null });
-        }
+        // ПЕРЕДАЁМ ТОКЕН ДВАЖДЫ: и в join, и в заголовках
+        socket.emit('join', { 
+            token: token, 
+            peerId: myPeerId || null,
+            authorization: token  // ← ДУБЛИРУЕМ ТОКЕН
+        });
     });
     
     socket.on('timer-update', (data) => {
@@ -594,11 +572,8 @@ function initSocket(token) {
     
     socket.on('voting-started', () => {
         voteStatus.textContent = '🗳️ Идёт голосование!';
-        if (!isAdmin && !hasVoted) {
-            showVoteButtons();
-        } else if (hasVoted) {
-            voteStatus.textContent = '🗳️ Вы уже проголосовали';
-        }
+        if (!isAdmin && !hasVoted) showVoteButtons();
+        else if (hasVoted) voteStatus.textContent = '🗳️ Вы уже проголосовали';
     });
     
     socket.on('voting-closed', () => {
@@ -607,9 +582,7 @@ function initSocket(token) {
     });
     
     socket.on('vote-count', (data) => {
-        if (voteStatus) {
-            voteStatus.textContent = `🗳️ Проголосовало: ${data.total}`;
-        }
+        if (voteStatus) voteStatus.textContent = `🗳️ Проголосовало: ${data.total}`;
     });
     
     socket.on('results', (data) => {
@@ -686,7 +659,7 @@ function initSocket(token) {
 }
 
 // ============================================================
-//  АДМИНИСТРАТИВНЫЕ ДЕЙСТВИЯ
+//  АДМИНКА
 // ============================================================
 
 function adminAction(action, payload = {}) {
@@ -706,7 +679,7 @@ function adminAction(action, payload = {}) {
 }
 
 // ============================================================
-//  ИНИЦИАЛИЗАЦИЯ
+//  ЗАПУСК
 // ============================================================
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -717,6 +690,7 @@ document.addEventListener('DOMContentLoaded', () => {
         showLoginForm();
     }
     
+    // КНОПКИ
     const createBtn = document.getElementById('create-deputy-btn');
     if (createBtn) {
         createBtn.onclick = () => {
@@ -812,26 +786,17 @@ document.addEventListener('DOMContentLoaded', () => {
     }
     
     console.log('🏛️ Симулятор Госдумы загружен');
-    console.log('📌 Для дебага: window.showState()');
 });
 
+// ============================================================
+//  ДЕБАГ
+// ============================================================
+
 window.showState = function() {
-    console.log('=== СОСТОЯНИЕ СИСТЕМЫ ===');
+    console.log('=== СОСТОЯНИЕ ===');
     console.log('Пользователь:', currentUser);
     console.log('Админ:', isAdmin);
     console.log('Токен:', getToken());
-    console.log('Спикер ID:', currentSpeakerId);
-    console.log('Время:', currentTime);
     console.log('Сокет:', socket ? 'подключен' : 'отключен');
     console.log('Peer:', peer ? 'активен' : 'неактивен');
-    console.log('Поток:', myStream ? 'есть' : 'нет');
-    console.log('Активные пиры:', activePeers);
-};
-
-window.forceReconnect = function() {
-    if (socket) {
-        socket.disconnect();
-        socket.connect();
-        console.log('🔄 Переподключение...');
-    }
 };
