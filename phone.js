@@ -73,7 +73,7 @@ function addLogoutButton() {
 }
 
 // ============================================================
-//  АВТОРИЗАЦИЯ (ИСПРАВЛЕННАЯ!)
+//  АВТОРИЗАЦИЯ
 // ============================================================
 
 async function init() {
@@ -95,7 +95,7 @@ async function init() {
             method: 'GET',
             headers: { 
                 'Content-Type': 'application/json',
-                'Authorization': currentToken  // ТОКЕН В ЗАГОЛОВКЕ
+                'Authorization': currentToken
             }
         });
         
