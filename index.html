@@ -1,97 +1,115 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Государственная Дума – Симулятор</title>
-    <!-- Подключаем PeerJS, QRCode.js, Socket.io (клиент) -->
+    <title>Государственная Дума — Официальный портал</title>
+    
+    <!-- CDN -->
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    
     <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-    <div id="app">
-        <!-- Шапка с логотипом и статусом -->
-        <header>
-            <h1>🏛️ Государственная Дума</h1>
-            <div id="user-info">Не авторизован</div>
-        </header>
-
-        <!-- Главный контейнер -->
-        <main>
-            <!-- Видеосетка -->
-            <section id="video-grid">
-                <div id="video-container">
-                    <!-- Видеоэлементы будут добавляться динамически -->
-                </div>
-                <!-- Центральное видео (выступающий) -->
-                <div id="center-video-wrapper">
-                    <video id="center-video" autoplay muted></video>
-                    <div id="center-label">Председатель</div>
-                </div>
-            </section>
-
-            <!-- Панель управления (видна только председателю) -->
-            <aside id="admin-panel" style="display:none;">
-                <h2>Панель Председателя</h2>
-                <div id="admin-controls">
-                    <!-- Создание депутата -->
-                    <div class="control-group">
-                        <h3>Создать депутата</h3>
-                        <input type="text" id="deputy-name" placeholder="Имя депутата" />
-                        <button id="create-deputy-btn">Создать</button>
-                        <div id="deputy-list">
-                            <h4>Список депутатов</h4>
-                            <ul id="deputies-list"></ul>
-                        </div>
-                    </div>
-
-                    <!-- Управление регламентом -->
-                    <div class="control-group">
-                        <h3>Регламент</h3>
-                        <div class="preset-buttons">
-                            <button data-seconds="60">Вопрос – 1 мин</button>
-                            <button data-seconds="120">Выступление – 2 мин</button>
-                            <button data-seconds="900">Доклад – 15 мин</button>
-                        </div>
-                        <div>
-                            <input type="number" id="custom-time" placeholder="Время в секундах" />
-                            <select id="speaker-select"></select>
-                            <button id="give-floor-btn">Дать слово</button>
-                            <button id="revoke-floor-btn">Лишить слова</button>
-                        </div>
-                        <div>
-                            <button id="break-btn">Перерыв</button>
-                            <button id="end-break-btn">Закончить перерыв</button>
-                        </div>
-                    </div>
-
-                    <!-- Голосование -->
-                    <div class="control-group">
-                        <h3>Голосование</h3>
-                        <button id="start-voting-btn">Поставить на голосование</button>
-                        <button id="close-voting-btn">Закрыть голосование</button>
-                        <button id="announce-results-btn">Огласить результаты</button>
-                        <div id="results-display"></div>
-                    </div>
-
-                    <!-- Очистка -->
-                    <div class="control-group">
-                        <button id="clear-all-btn" style="background:red;color:white;">Очистить всё и начать новую сессию</button>
-                    </div>
-                </div>
-            </aside>
-
-            <!-- Информация для депутатов -->
-            <div id="deputy-info" style="display:none;">
-                <p>Вы вошли как <span id="deputy-name-display"></span></p>
-                <div id="timer-display">⏱️ 0</div>
-                <div id="vote-status"></div>
-                <div id="break-status"></div>
+    <!-- ВЕРХНЯЯ ПАНЕЛЬ (КАК В ПАРЛАМЕНТЕ) -->
+    <header class="parliament-header">
+        <div class="header-left">
+            <div class="emblem">🏛️</div>
+            <div class="header-title">
+                <h1>ГОСУДАРСТВЕННАЯ ДУМА</h1>
+                <span class="subtitle">Официальный портал заседаний</span>
             </div>
-        </main>
-    </div>
+        </div>
+        <div class="header-right">
+            <div id="user-info" class="user-badge">Не авторизован</div>
+            <button id="logout-btn" class="btn-logout" style="display:none;">🚪 Выйти</button>
+        </div>
+    </header>
+
+    <!-- ОСНОВНОЙ КОНТЕНТ -->
+    <main class="parliament-main">
+        <!-- ЛЕВАЯ КОЛОНКА: ВИДЕОГАЛЕРЕЯ -->
+        <section class="video-gallery">
+            <div class="video-grid" id="video-container">
+                <!-- Видео участников -->
+            </div>
+            <div class="center-stage" id="center-video-wrapper" style="display:none;">
+                <video id="center-video" autoplay muted></video>
+                <div class="speaker-label" id="center-label">Выступающий</div>
+                <div class="timer-big" id="timer-display">⏱️ 0</div>
+            </div>
+        </section>
+
+        <!-- ПРАВАЯ КОЛОНКА: ПАНЕЛЬ УПРАВЛЕНИЯ -->
+        <aside class="control-panel" id="admin-panel" style="display:none;">
+            <div class="panel-header">
+                <h2>🔹 ПАНЕЛЬ ПРЕДСЕДАТЕЛЯ</h2>
+            </div>
+
+            <!-- БЛОК: ДЕПУТАТЫ -->
+            <div class="control-block">
+                <h3>👥 Депутаты</h3>
+                <div class="input-group">
+                    <input type="text" id="deputy-name" placeholder="Введите имя..." />
+                    <button id="create-deputy-btn" class="btn-primary">➕ Создать</button>
+                </div>
+                <ul id="deputies-list" class="deputy-list"></ul>
+            </div>
+
+            <!-- БЛОК: РЕГЛАМЕНТ -->
+            <div class="control-block">
+                <h3>⏱️ Регламент</h3>
+                <div class="preset-group">
+                    <button class="preset-btn" data-seconds="60">1 мин</button>
+                    <button class="preset-btn" data-seconds="120">2 мин</button>
+                    <button class="preset-btn" data-seconds="900">15 мин</button>
+                </div>
+                <div class="input-group">
+                    <input type="number" id="custom-time" placeholder="Секунды" />
+                    <select id="speaker-select"></select>
+                    <button id="give-floor-btn" class="btn-give">🎤 Дать слово</button>
+                    <button id="revoke-floor-btn" class="btn-revoke">⏹ Лишить</button>
+                </div>
+            </div>
+
+            <!-- БЛОК: ПЕРЕРЫВ -->
+            <div class="control-block">
+                <h3>⏸️ Перерыв</h3>
+                <div class="button-group">
+                    <button id="break-btn" class="btn-warning">🔴 Объявить перерыв</button>
+                    <button id="end-break-btn" class="btn-success">🟢 Завершить</button>
+                </div>
+            </div>
+
+            <!-- БЛОК: ГОЛОСОВАНИЕ -->
+            <div class="control-block">
+                <h3>🗳️ Голосование</h3>
+                <div class="button-group">
+                    <button id="start-voting-btn" class="btn-primary">📢 Начать</button>
+                    <button id="close-voting-btn" class="btn-warning">🔒 Закрыть</button>
+                    <button id="announce-results-btn" class="btn-success">📊 Результаты</button>
+                </div>
+                <div id="results-display" class="results-box"></div>
+            </div>
+
+            <!-- БЛОК: ОЧИСТКА -->
+            <div class="control-block">
+                <button id="clear-all-btn" class="btn-danger">🔄 Очистить всё</button>
+            </div>
+        </aside>
+
+        <!-- ИНФО ДЛЯ ДЕПУТАТОВ -->
+        <div id="deputy-info" style="display:none;" class="deputy-info">
+            <h3>🗳️ Пульт депутата</h3>
+            <p>Вы вошли как: <strong id="deputy-name-display"></strong></p>
+            <div id="timer-display-deputy" class="timer-deputy">⏱️ 0</div>
+            <div id="vote-status" class="vote-status"></div>
+            <div id="break-status" class="break-status"></div>
+            <div id="vote-buttons" class="vote-buttons"></div>
+        </div>
+    </main>
 
     <script src="script.js"></script>
 </body>
