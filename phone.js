@@ -1,6 +1,6 @@
 // ============================================================
 //  Мобильный пульт депутата (телефон)
-//  ВЕРСИЯ 2.0 - ПРАВИЛЬНАЯ АВТОРИЗАЦИЯ
+//  ВЕРСИЯ 3.0 - ИСПРАВЛЕННАЯ АВТОРИЗАЦИЯ
 // ============================================================
 
 const BACKEND_URL = 'https://duma-backend-1.onrender.com';
@@ -20,42 +20,30 @@ const voteButtonsContainer = document.getElementById('vote-buttons-container');
 const resultsDisplay = document.getElementById('results-display');
 
 // ============================================================
-//  УПРАВЛЕНИЕ ТОКЕНОМ (ПЕРСОНАЛЬНЫЙ ДЛЯ КАЖДОГО УСТРОЙСТВА)
+//  УПРАВЛЕНИЕ ТОКЕНОМ
 // ============================================================
 
-// Получить токен из localStorage
 function getPhoneToken() {
-    // Сначала проверяем URL (параметр token)
     const urlParams = new URLSearchParams(window.location.search);
     const urlToken = urlParams.get('token');
     if (urlToken) {
-        // Сохраняем токен из URL
         localStorage.setItem('duma_phone_token', urlToken);
-        // Убираем токен из URL (чтобы не светился в истории)
         window.history.replaceState({}, document.title, window.location.pathname);
         return urlToken;
     }
-    // Иначе берём из localStorage
     return localStorage.getItem('duma_phone_token');
 }
 
-// Сохранить токен
 function savePhoneToken(token) {
     localStorage.setItem('duma_phone_token', token);
 }
 
-// Удалить токен (выход)
 function clearPhoneToken() {
     localStorage.removeItem('duma_phone_token');
 }
 
-// Проверить, есть ли токен
-function hasPhoneToken() {
-    return getPhoneToken() !== null;
-}
-
 // ============================================================
-//  ФУНКЦИИ ВЫХОДА
+//  ВЫХОД
 // ============================================================
 
 function logout() {
@@ -69,7 +57,6 @@ function logout() {
     }
 }
 
-// Добавляем кнопку выхода
 function addLogoutButton() {
     let logoutBtn = document.getElementById('phone-logout-btn');
     if (!logoutBtn) {
@@ -86,16 +73,13 @@ function addLogoutButton() {
 }
 
 // ============================================================
-//  ОСНОВНЫЕ ФУНКЦИИ
+//  АВТОРИЗАЦИЯ (ИСПРАВЛЕННАЯ!)
 // ============================================================
 
-// Инициализация
 async function init() {
-    // Получаем токен
     currentToken = getPhoneToken();
     
     if (!currentToken) {
-        // Если нет токена в URL и в localStorage
         const tokenInput = prompt('Введите токен депутата:');
         if (tokenInput) {
             currentToken = tokenInput;
@@ -106,13 +90,12 @@ async function init() {
         }
     }
     
-    // Пытаемся войти
     try {
         const res = await fetch(`${BACKEND_URL}/api/session-state`, {
             method: 'GET',
             headers: { 
                 'Content-Type': 'application/json',
-                'Authorization': currentToken 
+                'Authorization': currentToken  // ТОКЕН В ЗАГОЛОВКЕ
             }
         });
         
@@ -120,10 +103,10 @@ async function init() {
             if (res.status === 401) {
                 clearPhoneToken();
                 alert('Неверный токен. Попробуйте снова.');
-                init(); // Повторяем
+                init();
                 return;
             }
-            throw new Error('Ошибка сервера');
+            throw new Error('Ошибка сервера: ' + res.status);
         }
         
         const data = await res.json();
@@ -134,39 +117,31 @@ async function init() {
             return;
         }
         
-        // Успешный вход
         currentUser = data.user;
         userNameEl.textContent = `Депутат: ${currentUser.name}`;
         addLogoutButton();
-        
-        // Восстанавливаем состояние
         restoreState(data.state, data.voted || false);
-        
-        // Инициализируем сокет
         initSocket(currentToken);
         
     } catch (err) {
         console.error('Ошибка входа:', err);
         alert('Ошибка подключения к серверу: ' + err.message);
         clearPhoneToken();
-        init(); // Повторяем
+        init();
     }
 }
 
 function restoreState(state, voted) {
     hasVoted = voted || false;
     
-    // Таймер
     timerEl.textContent = `⏱️ ${state.time_remaining || 0}`;
     
-    // Перерыв
     if (state.is_break) {
         breakStatusEl.textContent = '⏸️ ПЕРЕРЫВ';
     } else {
         breakStatusEl.textContent = '';
     }
     
-    // Голосование
     if (state.is_voting) {
         voteStatusEl.textContent = '🗳️ Идёт голосование';
         if (!hasVoted) {
@@ -217,7 +192,6 @@ function hideVoteButtons() {
 }
 
 function sendVote(vote) {
-    // Блокируем кнопки, чтобы нельзя было проголосовать дважды
     voteButtonsContainer.innerHTML = '<p style="color:#ffd700;">⏳ Отправка голоса...</p>';
     
     fetch(`${BACKEND_URL}/api/vote`, {
@@ -234,7 +208,7 @@ function sendVote(vote) {
             voteStatusEl.textContent = '🗳️ Идёт голосование (вы уже проголосовали)';
         } else {
             alert('❌ ' + data.message);
-            showVoteButtons(); // Возвращаем кнопки
+            showVoteButtons();
         }
     })
     .catch(err => {
@@ -244,7 +218,10 @@ function sendVote(vote) {
     });
 }
 
-// ---------- СОКЕТ ----------
+// ============================================================
+//  СОКЕТ
+// ============================================================
+
 function initSocket(token) {
     if (socket) {
         socket.disconnect();
@@ -255,7 +232,6 @@ function initSocket(token) {
     
     socket.on('connect', () => {
         console.log('✅ Сокет подключен');
-        // Отправляем join (без видео)
         socket.emit('join', { token, peerId: null });
     });
     
@@ -304,7 +280,6 @@ function initSocket(token) {
     
     socket.on('floor-changed', (data) => {
         if (data.speakerId) {
-            // Кто-то говорит
             timerEl.textContent = `⏱️ ${data.time || 0}`;
         }
     });
@@ -328,21 +303,11 @@ function initSocket(token) {
 //  ЗАПУСК
 // ============================================================
 
-// Запускаем при загрузке страницы
 document.addEventListener('DOMContentLoaded', () => {
     init();
 });
 
-// Дебаг: показать текущий токен
 window.showPhoneToken = function() {
     console.log('Текущий токен:', getPhoneToken());
     console.log('Пользователь:', currentUser);
 };
-
-// Обработчик для восстановления при ошибках соединения
-window.addEventListener('online', () => {
-    console.log('🔄 Интернет восстановлен, переподключаемся...');
-    if (!socket || !socket.connected) {
-        initSocket(currentToken);
-    }
-});
