@@ -1,196 +1,540 @@
-/* Общие стили */
+/* ============================================================
+   ПАРЛАМЕНТСКИЙ СТИЛЬ — ГОСУДАРСТВЕННАЯ ДУМА
+   ============================================================ */
+
 * {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    font-family: 'Segoe UI', 'Georgia', serif;
 }
+
 body {
-    background: #1a1a2e;
-    color: #eee;
+    background: #0a0a1a;
+    color: #e8e8e8;
     min-height: 100vh;
+    background-image: radial-gradient(ellipse at 10% 20%, rgba(20, 30, 80, 0.3), transparent 60%),
+                      radial-gradient(ellipse at 90% 80%, rgba(80, 20, 30, 0.2), transparent 60%);
 }
-header {
-    background: #16213e;
-    padding: 1rem 2rem;
+
+/* ---------- ШАПКА (как в парламенте) ---------- */
+.parliament-header {
+    background: linear-gradient(135deg, #0d0d2b, #1a1a3e);
+    padding: 12px 30px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 2px solid #e94560;
+    border-bottom: 3px solid #d4af37;
+    box-shadow: 0 4px 20px rgba(212, 175, 55, 0.15);
+    position: sticky;
+    top: 0;
+    z-index: 100;
 }
-header h1 {
-    font-size: 1.8rem;
-    color: #e94560;
+
+.header-left {
+    display: flex;
+    align-items: center;
+    gap: 18px;
 }
-#user-info {
-    font-weight: bold;
+
+.emblem {
+    font-size: 32px;
+    filter: drop-shadow(0 0 10px rgba(212, 175, 55, 0.3));
 }
-main {
+
+.header-title h1 {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: 3px;
+    color: #d4af37;
+    text-shadow: 0 0 20px rgba(212, 175, 55, 0.15);
+}
+
+.subtitle {
+    font-size: 11px;
+    color: #8899bb;
+    letter-spacing: 5px;
+    text-transform: uppercase;
+    font-weight: 300;
+}
+
+.header-right {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.user-badge {
+    background: rgba(212, 175, 55, 0.12);
+    padding: 6px 18px;
+    border-radius: 20px;
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    font-size: 14px;
+    color: #d4af37;
+}
+
+.btn-logout {
+    background: rgba(200, 50, 50, 0.2);
+    color: #ff6b6b;
+    border: 1px solid rgba(200, 50, 50, 0.3);
+    padding: 6px 16px;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.3s;
+    font-size: 13px;
+}
+
+.btn-logout:hover {
+    background: rgba(200, 50, 50, 0.4);
+}
+
+/* ---------- ОСНОВНОЙ КОНТЕНТ ---------- */
+.parliament-main {
     display: grid;
-    grid-template-columns: 2fr 1fr;
-    gap: 1rem;
-    padding: 1rem;
+    grid-template-columns: 1fr 420px;
+    gap: 20px;
+    padding: 20px 30px;
+    max-width: 1600px;
+    margin: 0 auto;
     height: calc(100vh - 80px);
 }
-#video-grid {
+
+/* ---------- ВИДЕОГАЛЕРЕЯ ---------- */
+.video-gallery {
+    background: rgba(13, 13, 43, 0.6);
+    border-radius: 16px;
+    border: 1px solid rgba(212, 175, 55, 0.12);
+    padding: 15px;
     position: relative;
-    background: #0f0f1a;
-    border-radius: 12px;
     overflow: hidden;
     display: flex;
-    flex-direction: column;
+    flex-wrap: wrap;
+    align-content: flex-start;
+    gap: 10px;
 }
-#video-container {
+
+.video-grid {
     display: flex;
     flex-wrap: wrap;
     gap: 10px;
-    padding: 10px;
-    flex: 1;
-    overflow-y: auto;
+    width: 100%;
+    height: 100%;
 }
+
 .video-item {
-    width: 200px;
-    height: 150px;
-    background: #2d2d44;
-    border-radius: 8px;
+    width: 160px;
+    height: 120px;
+    background: #111128;
+    border-radius: 10px;
     overflow: hidden;
     position: relative;
-    border: 2px solid #3a3a5a;
+    border: 2px solid rgba(212, 175, 55, 0.15);
+    transition: border-color 0.3s;
 }
+
+.video-item:hover {
+    border-color: rgba(212, 175, 55, 0.4);
+}
+
 .video-item video {
     width: 100%;
     height: 100%;
     object-fit: cover;
-    background: #000;
+    background: #0a0a1a;
 }
+
 .video-item .label {
     position: absolute;
-    bottom: 5px;
-    left: 5px;
-    background: rgba(0,0,0,0.6);
-    padding: 2px 8px;
-    border-radius: 4px;
-    font-size: 0.8rem;
-    color: white;
+    bottom: 6px;
+    left: 6px;
+    background: rgba(0, 0, 0, 0.75);
+    padding: 2px 12px;
+    border-radius: 12px;
+    font-size: 11px;
+    color: #d4af37;
+    border: 1px solid rgba(212, 175, 55, 0.2);
 }
-#center-video-wrapper {
+
+/* ---------- ЦЕНТРАЛЬНАЯ СЦЕНА ---------- */
+.center-stage {
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    width: 60%;
-    height: 60%;
-    border: 4px solid #e94560;
+    width: 65%;
+    height: 65%;
+    border: 4px solid #d4af37;
     border-radius: 16px;
     overflow: hidden;
-    background: #000;
-    display: none;
+    background: #0a0a1a;
+    box-shadow: 0 0 60px rgba(212, 175, 55, 0.15);
+    animation: fadeIn 0.5s ease;
 }
-#center-video-wrapper video {
+
+.center-stage video {
     width: 100%;
     height: 100%;
     object-fit: cover;
 }
-#center-label {
+
+.speaker-label {
     position: absolute;
-    bottom: 10px;
+    bottom: 16px;
     left: 50%;
     transform: translateX(-50%);
-    background: rgba(233, 69, 96, 0.8);
-    padding: 4px 16px;
-    border-radius: 20px;
-    font-weight: bold;
-    font-size: 1rem;
-    color: white;
+    background: rgba(212, 175, 55, 0.85);
+    padding: 6px 24px;
+    border-radius: 30px;
+    font-weight: 700;
+    font-size: 16px;
+    color: #0a0a1a;
+    letter-spacing: 2px;
+    text-transform: uppercase;
 }
-#admin-panel {
-    background: #16213e;
-    padding: 1rem;
+
+.timer-big {
+    position: absolute;
+    top: 16px;
+    right: 20px;
+    font-size: 28px;
+    font-weight: 700;
+    color: #d4af37;
+    text-shadow: 0 0 30px rgba(212, 175, 55, 0.3);
+    background: rgba(0, 0, 0, 0.6);
+    padding: 4px 16px;
     border-radius: 12px;
+    border: 1px solid rgba(212, 175, 55, 0.2);
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translate(-50%, -50%) scale(0.95); }
+    to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+/* ---------- ПАНЕЛЬ УПРАВЛЕНИЯ ---------- */
+.control-panel {
+    background: rgba(13, 13, 43, 0.8);
+    border-radius: 16px;
+    border: 1px solid rgba(212, 175, 55, 0.12);
+    padding: 20px;
     overflow-y: auto;
     max-height: 100%;
 }
-#admin-panel h2 {
-    color: #e94560;
-    margin-bottom: 1rem;
+
+.panel-header h2 {
+    color: #d4af37;
+    font-size: 16px;
+    letter-spacing: 3px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.15);
+    padding-bottom: 12px;
+    margin-bottom: 16px;
 }
-.control-group {
-    margin-bottom: 1.5rem;
-    padding-bottom: 1rem;
-    border-bottom: 1px solid #2d2d44;
+
+.control-block {
+    margin-bottom: 18px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.06);
 }
-.control-group h3 {
-    font-size: 1rem;
-    color: #aaa;
-    margin-bottom: 0.5rem;
+
+.control-block h3 {
+    font-size: 13px;
+    color: #8899bb;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    margin-bottom: 10px;
+    font-weight: 400;
 }
-button {
-    background: #e94560;
-    color: white;
-    border: none;
-    padding: 6px 14px;
-    border-radius: 6px;
+
+.input-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.input-group input,
+.input-group select {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(212, 175, 55, 0.15);
+    border-radius: 8px;
+    padding: 8px 12px;
+    color: #e8e8e8;
+    font-size: 13px;
+    flex: 1;
+    min-width: 80px;
+}
+
+.input-group input:focus,
+.input-group select:focus {
+    outline: none;
+    border-color: #d4af37;
+}
+
+.preset-group {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 8px;
+}
+
+.preset-btn {
+    background: rgba(212, 175, 55, 0.08);
+    color: #d4af37;
+    border: 1px solid rgba(212, 175, 55, 0.15);
+    padding: 4px 14px;
+    border-radius: 16px;
+    font-size: 12px;
     cursor: pointer;
+    transition: all 0.3s;
+}
+
+.preset-btn:hover {
+    background: rgba(212, 175, 55, 0.2);
+}
+
+.button-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+}
+
+/* ---------- КНОПКИ ---------- */
+.btn-primary {
+    background: linear-gradient(135deg, #1a3a6a, #0d2b4a);
+    color: #d4af37;
+    border: 1px solid rgba(212, 175, 55, 0.25);
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.3s;
     font-weight: 600;
-    transition: 0.2s;
 }
-button:hover {
-    background: #c73652;
+
+.btn-primary:hover {
+    background: linear-gradient(135deg, #2a4a7a, #1a3a5a);
+    transform: translateY(-1px);
 }
-input, select {
-    background: #2d2d44;
-    color: #eee;
-    border: 1px solid #444;
-    padding: 6px 10px;
-    border-radius: 6px;
-    margin: 4px 0;
+
+.btn-give {
+    background: linear-gradient(135deg, #1a5a3a, #0d4a2a);
+    color: #7ddfb0;
+    border: 1px solid rgba(100, 220, 150, 0.25);
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.3s;
 }
-#deputy-list ul {
+
+.btn-give:hover {
+    background: linear-gradient(135deg, #2a6a4a, #1a5a3a);
+}
+
+.btn-revoke {
+    background: linear-gradient(135deg, #6a1a1a, #4a0d0d);
+    color: #ff6b6b;
+    border: 1px solid rgba(200, 50, 50, 0.25);
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.3s;
+}
+
+.btn-revoke:hover {
+    background: linear-gradient(135deg, #7a2a2a, #5a1a1a);
+}
+
+.btn-warning {
+    background: linear-gradient(135deg, #6a5a1a, #4a3a0d);
+    color: #ffd93d;
+    border: 1px solid rgba(200, 180, 50, 0.25);
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.3s;
+}
+
+.btn-warning:hover {
+    background: linear-gradient(135deg, #7a6a2a, #5a4a1a);
+}
+
+.btn-success {
+    background: linear-gradient(135deg, #1a5a3a, #0d4a2a);
+    color: #7ddfb0;
+    border: 1px solid rgba(100, 220, 150, 0.25);
+    padding: 8px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.3s;
+}
+
+.btn-success:hover {
+    background: linear-gradient(135deg, #2a6a4a, #1a5a3a);
+}
+
+.btn-danger {
+    background: linear-gradient(135deg, #6a1a1a, #4a0d0d);
+    color: #ff6b6b;
+    border: 1px solid rgba(200, 50, 50, 0.25);
+    padding: 10px 20px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.3s;
+    width: 100%;
+    font-weight: 700;
+}
+
+.btn-danger:hover {
+    background: linear-gradient(135deg, #7a2a2a, #5a1a1a);
+}
+
+/* ---------- СПИСОК ДЕПУТАТОВ ---------- */
+.deputy-list {
     list-style: none;
-    margin-top: 6px;
+    margin-top: 8px;
+    max-height: 160px;
+    overflow-y: auto;
 }
-#deputy-list li {
-    background: #2d2d44;
-    margin: 4px 0;
-    padding: 6px 10px;
+
+.deputy-list li {
+    background: rgba(255, 255, 255, 0.03);
+    padding: 6px 12px;
     border-radius: 6px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    border-bottom: 1px solid rgba(212, 175, 55, 0.06);
+    font-size: 13px;
 }
-.qr-code {
-    width: 60px;
-    height: 60px;
+
+.deputy-list li .qr-code {
+    width: 40px;
+    height: 40px;
 }
-#deputy-info {
-    background: #16213e;
-    padding: 1rem;
-    border-radius: 12px;
-    margin-top: 1rem;
-}
-#timer-display {
-    font-size: 2rem;
-    font-weight: bold;
-    color: #e94560;
-    text-align: center;
-}
-#results-display {
-    margin-top: 10px;
-    background: #0f0f1a;
-    padding: 10px;
+
+/* ---------- РЕЗУЛЬТАТЫ ---------- */
+.results-box {
+    background: rgba(212, 175, 55, 0.05);
+    border: 1px solid rgba(212, 175, 55, 0.1);
     border-radius: 8px;
-    font-weight: bold;
+    padding: 12px;
+    margin-top: 8px;
+    text-align: center;
+    font-size: 14px;
+    color: #d4af37;
 }
-#break-status {
-    color: #ffd700;
-    font-weight: bold;
+
+/* ---------- ПУЛЬТ ДЕПУТАТА ---------- */
+.deputy-info {
+    background: rgba(13, 13, 43, 0.8);
+    border-radius: 16px;
+    border: 1px solid rgba(212, 175, 55, 0.12);
+    padding: 20px;
+    margin-top: 10px;
 }
-@media (max-width: 1024px) {
-    main {
+
+.deputy-info h3 {
+    color: #d4af37;
+    font-size: 16px;
+    letter-spacing: 2px;
+}
+
+.timer-deputy {
+    font-size: 40px;
+    font-weight: 700;
+    color: #d4af37;
+    text-align: center;
+    padding: 20px;
+}
+
+.vote-status {
+    text-align: center;
+    font-size: 16px;
+    color: #ffd93d;
+    padding: 10px;
+}
+
+.break-status {
+    text-align: center;
+    font-size: 18px;
+    color: #ff6b6b;
+    font-weight: 700;
+    padding: 10px;
+}
+
+.vote-buttons {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 10px;
+}
+
+.vote-buttons button {
+    flex: 1;
+    padding: 14px 0;
+    border: none;
+    border-radius: 8px;
+    font-weight: 700;
+    font-size: 16px;
+    cursor: pointer;
+    transition: all 0.3s;
+}
+
+.vote-buttons button:active {
+    transform: scale(0.95);
+}
+
+/* ---------- АДАПТИВ ---------- */
+@media (max-width: 1200px) {
+    .parliament-main {
         grid-template-columns: 1fr;
         height: auto;
     }
-    #video-grid {
-        height: 60vh;
+    .video-gallery {
+        min-height: 400px;
     }
+    .center-stage {
+        width: 80%;
+        height: 60%;
+    }
+}
+
+@media (max-width: 768px) {
+    .parliament-header {
+        flex-direction: column;
+        gap: 10px;
+        padding: 12px 16px;
+    }
+    .header-title h1 {
+        font-size: 16px;
+    }
+    .parliament-main {
+        padding: 10px 12px;
+    }
+    .video-item {
+        width: 120px;
+        height: 90px;
+    }
+    .center-stage {
+        width: 90%;
+        height: 50%;
+    }
+}
+
+/* ---------- СКРОЛЛ ---------- */
+::-webkit-scrollbar {
+    width: 4px;
+}
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.02);
+}
+::-webkit-scrollbar-thumb {
+    background: rgba(212, 175, 55, 0.3);
+    border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(212, 175, 55, 0.5);
 }
